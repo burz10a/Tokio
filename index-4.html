@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tokio — Mały pies, wielka osobowość</title>
+<meta name="description" content="Tokio — mały czarno-biały pies o ogromnej osobowości. Zawodowy gryzoń, rakieta spacerowa, mistrzyni obrażania się.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%B6%3C/text%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ================================================================
+   RESET
+================================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth; overflow-x:hidden; width:100%;}
+img{max-width:100%;display:block;}
+a{color:inherit;text-decoration:none;}
+button{font:inherit;border:none;background:none;color:inherit;cursor:pointer;}
+ul{list-style:none;}
+svg{display:block;}
+
+/* ================================================================
+   TOKENS
+================================================================ */
+:root{
+  --ink:#0a0a0d;
+  --ink-soft:#141419;
+  --ink-line:rgba(255,255,255,0.09);
+  --paper:#f6f6f4;
+  --paper-dim:#eceae5;
+  --paper-line:rgba(10,10,13,0.08);
+  --grey-500:#8b8d98;
+  --grey-700:#4a4b52;
+
+  --pink:#ff5da2;
+  --violet:#7c5cff;
+  --blue:#4ea1ff;
+  --gradient: linear-gradient(120deg, var(--pink) 0%, var(--violet) 55%, var(--blue) 100%);
+  --gradient-soft: linear-gradient(120deg, rgba(255,93,162,0.25) 0%, rgba(124,92,255,0.25) 55%, rgba(78,161,255,0.25) 100%);
+
+  --radius-sm:14px;
+  --radius-md:22px;
+  --radius-lg:34px;
+
+  --shadow-dark: 0 30px 70px -25px rgba(0,0,0,0.55);
+  --shadow-light: 0 25px 60px -25px rgba(20,20,25,0.25);
+
+  --ease: cubic-bezier(.16,.84,.44,1);
+  --font-display:'Bricolage Grotesque', sans-serif;
+  --font-body:'Plus Jakarta Sans', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+}
+
+body{
+  font-family:var(--font-body);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+  width:100%;
+  max-width:100vw;
+  position:relative;
+}
+body.lock{overflow:hidden;height:100vh;}
+
+.container{
+  width:100%;
+  max-width:1220px;
+  margin-inline:auto;
+  padding-inline:clamp(1.25rem, 5vw, 3rem);
+}
+
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:0.75rem;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:var(--pink);
+  display:inline-flex;
+  align-items:center;
+  gap:0.6em;
+  margin-bottom:1.1rem;
+}
+.eyebrow::before{
+  content:"";
+  width:1.6em;
+  height:1px;
+  background:currentColor;
+  opacity:0.6;
+}
+
+h1,h2,h3{
+  font-family:var(--font-display);
+  font-weight:800;
+  letter-spacing:-0.02em;
+  line-height:1.05;
+}
+
+.section{
+  position:relative;
+  padding:clamp(5rem, 12vw, 9rem) 0;
+}
+.section--dark{background:var(--ink); color:#f2f1ee;}
+.section--dark .eyebrow{color:var(--pink);}
+.section--light{background:var(--paper); color:var(--ink);}
+
+.section-head{
+  max-width:640px;
+  margin-bottom:clamp(2.5rem, 6vw, 4.5rem);
+}
+.section-head h2{font-size:clamp(2.1rem, 5vw, 3.4rem);}
+.section-head p{
+  margin-top:1.1rem;
+  font-size:1.05rem;
+  color:var(--grey-500);
+  max-width:46ch;
+}
+.section--dark .section-head p{color:#a8a8b3;}
+
+/* reveal on scroll */
+.reveal{
+  opacity:0;
+  transform:translateY(36px);
+  transition:opacity .9s var(--ease), transform .9s var(--ease);
+  will-change:transform, opacity;
+}
+.reveal.in{opacity:1; transform:translateY(0);}
+.reveal-l{opacity:0; transform:translateX(-46px); transition:opacity .9s var(--ease), transform .9s var(--ease);}
+.reveal-l.in{opacity:1; transform:translateX(0);}
+.reveal-r{opacity:0; transform:translateX(46px); transition:opacity .9s var(--ease), transform .9s var(--ease);}
+.reveal-r.in{opacity:1; transform:translateX(0);}
+.reveal-scale{opacity:0; transform:scale(.92); transition:opacity .8s var(--ease), transform .8s var(--ease);}
+.reveal-scale.in{opacity:1; transform:scale(1);}
+
+@media (prefers-reduced-motion: reduce){
+  .reveal, .reveal-l, .reveal-r, .reveal-scale{opacity:1 !important; transform:none !important; transition:none !important;}
+  html{scroll-behavior:auto;}
+}
+
+/* ================================================================
+   CUSTOM CURSOR (delikatny)
+================================================================ */
+.cursor-dot, .cursor-ring{
+  position:fixed; top:0; left:0;
+  border-radius:50%;
+  pointer-events:none;
+  z-index:9999;
+  transform:translate(-50%,-50%);
+}
+.cursor-dot{
+  width:6px; height:6px;
+  background:var(--pink);
+  transition:opacity .2s ease, transform .15s ease;
+}
+.cursor-ring{
+  width:34px; height:34px;
+  border:1px solid rgba(255,255,255,0.75);
+  background:rgba(255,255,255,0.04);
+  mix-blend-mode:difference;
+  transition:width .28s var(--ease), height .28s var(--ease), opacity .2s ease;
+}
+html.has-cursor.cursor-hover .cursor-ring{width:54px; height:54px;}
+html.has-cursor *{cursor:none;}
+@media (hover:none), (pointer:coarse){
+  .cursor-dot,.cursor-ring{display:none;}
+}
+
+/* ================================================================
+   SCROLL PROGRESS
+================================================================ */
+.progress-bar{
+  position:fixed; top:0; left:0; height:3px;
+  background:var(--gradient);
+  z-index:1001;
+  width:0%;
+  transition:width .1s linear;
+}
+
+/* ================================================================
+   LOADER
+================================================================ */
+#loader{
+  position:fixed; inset:0; z-index:2000;
+  background:var(--ink);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:1.4rem;
+  transition:transform .9s var(--ease), opacity .7s ease;
+}
+#loader.done{transform:translateY(-100%); opacity:0; pointer-events:none;}
+#loader .mark{width:96px; height:96px;}
+#loader .mark path, #loader .mark circle{
+  stroke:#f2f1ee; stroke-width:3; fill:none;
+  transition:fill .5s ease .1s;
+}
+#loader .mark .fillme{fill:none;}
+#loader .mark.filled .fillme{fill:var(--pink);}
+#loader .mark.filled #earR{fill:var(--violet); stroke:var(--violet);}
+#loader .mark.filled #earL{fill:var(--blue); stroke:var(--blue);}
+#loader .loader-label{
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:#6f6f7a;
+  opacity:0;
+  transition:opacity .5s ease;
+}
+#loader .loader-label.show{opacity:1;}
+
+/* ================================================================
+   NAVBAR
+================================================================ */
+.navbar{
+  position:fixed; top:0; left:0; right:0; z-index:900;
+  padding:1.3rem 0;
+  transition:padding .35s var(--ease);
+  background:var(--ink);
+}
+.navbar::after{
+  content:""; position:absolute; left:0; right:0; bottom:0; height:1px;
+  background:var(--gradient); opacity:0.55;
+}
+.navbar.scrolled{
+  padding:0.8rem 0;
+}
+.navbar .container{display:flex; align-items:center; justify-content:space-between;}
+.brand{display:flex; align-items:center; gap:0.6rem; font-family:var(--font-display); font-weight:800; font-size:1.15rem; color:#fff;}
+.brand .mark{width:30px; height:30px;}
+.brand .mark path, .brand .mark circle{fill:none; stroke:#fff; stroke-width:4;}
+.brand .mark #earRb{fill:var(--violet); stroke:none;}
+.brand .mark #earLb{fill:var(--pink); stroke:none;}
+.brand .mark #eyesb, .brand .mark #noseb, .brand .mark #mouthb{stroke:#0a0a0d;}
+.brand .mark #headb{fill:#fff; stroke:none;}
+
+.nav-links{display:flex; gap:2.1rem; align-items:center;}
+.nav-links a{
+  font-size:0.88rem; font-weight:500; color:#d7d7de;
+  position:relative; padding:0.3rem 0;
+}
+.nav-links a::after{
+  content:""; position:absolute; left:0; bottom:-2px; height:1px; width:0;
+  background:var(--gradient); transition:width .3s var(--ease);
+}
+.nav-links a:hover{color:#fff;}
+.nav-links a:hover::after{width:100%;}
+
+.nav-toggle{display:none; width:42px; height:42px; border-radius:50%; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); color:#fff;}
+.nav-toggle svg{width:18px; height:18px;}
+
+.nav-close-item{display:none;}
+.nav-close{
+  width:42px; height:42px; border-radius:50%;
+  background:rgba(255,255,255,0.08); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .25s ease, transform .25s ease;
+}
+.nav-close:hover{background:rgba(255,255,255,0.18); transform:rotate(90deg);}
+
+@media (max-width:860px){
+  .nav-close-item{
+    display:flex; justify-content:flex-end;
+    position:absolute; top:1.5rem; right:1.5rem;
+  }
+  .nav-links{
+    position:fixed; inset:0 0 0 auto; width:min(78vw,340px);
+    background:rgba(10,10,13,0.92); backdrop-filter:blur(20px);
+    flex-direction:column; justify-content:center; gap:2.2rem;
+    transform:translateX(100%); transition:transform .5s var(--ease);
+    padding:2rem;
+  }
+  .nav-links.open{transform:translateX(0);}
+  .nav-links a{font-size:1.3rem;}
+  .nav-toggle{display:flex;}
+}
+
+/* ================================================================
+   HERO
+================================================================ */
+.hero{
+  position:relative; min-height:100vh; display:flex; align-items:flex-end;
+  overflow:hidden; background:var(--ink); color:#fff;
+}
+.hero-media{position:absolute; inset:0; z-index:0;}
+.hero-media img{width:100%; height:100%; object-fit:cover; transform:scale(1.08);}
+.hero-media .ph-fallback{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:0.6rem;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255,93,162,0.35), transparent 45%),
+    radial-gradient(circle at 80% 30%, rgba(78,161,255,0.35), transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(124,92,255,0.4), transparent 55%),
+    var(--ink);
+}
+.hero-overlay{
+  position:absolute; inset:0; z-index:1;
+  background:
+    linear-gradient(180deg, rgba(10,10,13,0.35) 0%, rgba(10,10,13,0.55) 55%, rgba(10,10,13,0.94) 100%);
+}
+#hero-particles{position:absolute; inset:0; z-index:1; pointer-events:none;}
+
+.hero-content{position:relative; z-index:2; width:100%; padding-bottom:clamp(3.5rem, 8vw, 6rem);}
+.hero-content .eyebrow{color:#ffd7e8;}
+.hero-title{
+  font-size:clamp(4.2rem, 16vw, 11rem);
+  line-height:0.86;
+  color:#fff;
+  display:flex; overflow:hidden;
+}
+.hero-title span{
+  display:inline-block;
+  transform:translateY(115%);
+  animation:riseUp 1s var(--ease) forwards;
+  animation-delay:calc(var(--i) * 0.07s + 0.15s);
+  background:var(--gradient);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+@keyframes riseUp{to{transform:translateY(0);}}
+
+.hero-sub{
+  margin-top:1.5rem; font-size:clamp(1.1rem,2.6vw,1.5rem); color:#e8e8ee; font-weight:500; max-width:34ch;
+  opacity:0; animation:fadeUp .9s var(--ease) forwards; animation-delay:0.85s;
+}
+@keyframes fadeUp{from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:translateY(0);}}
+
+.hero-actions{margin-top:2.4rem; display:flex; gap:1rem; align-items:center; opacity:0; animation:fadeUp .9s var(--ease) forwards; animation-delay:1.05s;}
+
+.btn{
+  position:relative; overflow:hidden;
+  display:inline-flex; align-items:center; gap:0.6rem;
+  padding:1rem 1.9rem; border-radius:100px;
+  font-weight:600; font-size:0.95rem;
+  transition:transform .35s var(--ease), box-shadow .35s var(--ease);
+}
+.btn--primary{background:var(--gradient); color:#0a0a0d;}
+.btn--primary:hover{transform:translateY(-3px); box-shadow:0 18px 40px -12px rgba(255,93,162,0.45);}
+.btn--ghost{border:1px solid rgba(255,255,255,0.35); color:#fff;}
+.btn--ghost:hover{background:rgba(255,255,255,0.08); transform:translateY(-3px);}
+.ripple{position:absolute; border-radius:50%; background:rgba(255,255,255,0.55); transform:scale(0); animation:rippleAnim .65s ease-out forwards; pointer-events:none;}
+.btn--primary .ripple{background:rgba(10,10,13,0.25);}
+@keyframes rippleAnim{to{transform:scale(3.2); opacity:0;}}
+
+/* ================================================================
+   PHOTO FRAME (shared image + fallback component)
+================================================================ */
+.photo-frame{position:relative; overflow:hidden; border-radius:var(--radius-md); background:var(--ink-soft);}
+.photo-frame img{width:100%; height:100%; object-fit:cover; transition:transform .7s var(--ease);}
+.photo-frame .ph-fallback{
+  display:none; position:absolute; inset:0; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem;
+  background:var(--gradient-soft), var(--ink-soft);
+  color:#c9c9d4; text-align:center; padding:1rem;
+}
+.photo-frame .ph-fallback .ph-icon{font-size:1.8rem;}
+.photo-frame .ph-fallback .ph-label{font-family:var(--font-mono); font-size:0.68rem; letter-spacing:0.05em; opacity:0.8;}
+
+/* ================================================================
+   O TOKIO
+================================================================ */
+.about{padding-top:clamp(6rem,14vw,10rem);}
+.about-grid{display:grid; grid-template-columns:1.05fr 0.95fr; gap:clamp(2.5rem,6vw,5rem); align-items:center;}
+.about-text p{font-size:clamp(1.05rem,2vw,1.3rem); color:var(--grey-700); margin-bottom:1.3rem;}
+.about-text p:first-of-type{font-size:clamp(1.2rem,2.3vw,1.55rem); color:var(--ink); font-weight:500;}
+
+.about-portrait{position:relative;}
+.about-portrait .photo-frame{aspect-ratio:4/5; box-shadow:var(--shadow-light);}
+.chip{
+  position:absolute; padding:0.55rem 1rem; border-radius:100px;
+  background:rgba(255,255,255,0.75); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(10,10,13,0.08); box-shadow:0 12px 30px -12px rgba(0,0,0,0.25);
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.03em; color:var(--ink);
+  display:flex; align-items:center; gap:0.5rem;
+  animation:floaty 5s ease-in-out infinite;
+}
+.chip span.dot{width:6px; height:6px; border-radius:50%; background:var(--pink);}
+.chip--1{top:8%; left:-8%;}
+.chip--2{bottom:14%; right:-9%; animation-delay:1.2s;}
+.chip--3{top:44%; right:-11%; animation-delay:2.4s;}
+@keyframes floaty{0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);}}
+@media (max-width:1000px){.chip{display:none;}}
+
+@media (max-width:900px){
+  .about-grid{grid-template-columns:1fr;}
+}
+
+/* ================================================================
+   GALLERY
+================================================================ */
+.gallery-grid{
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:1.4rem;
+}
+.gallery-item{cursor:none;}
+.gallery-item .photo-frame{width:100%; aspect-ratio:3/4; box-shadow:var(--shadow-dark);}
+.gallery-item.loaded:hover img{transform:scale(1.08);}
+.gallery-item .zoom-hint{
+  position:absolute; top:0.8rem; right:0.8rem; width:34px; height:34px; border-radius:50%;
+  background:rgba(255,255,255,0.12); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .3s ease; color:#fff;
+}
+.gallery-item.loaded:hover .zoom-hint{opacity:1;}
+
+@media (max-width:760px){
+  .gallery-grid{grid-template-columns:1fr; max-width:420px; margin-inline:auto;}
+}
+
+/* lightbox */
+.lightbox{
+  position:fixed; inset:0; z-index:1500; background:rgba(8,8,10,0.94);
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .4s ease;
+  backdrop-filter:blur(6px);
+}
+.lightbox.open{opacity:1; pointer-events:auto;}
+.lightbox img{max-width:min(88vw,1000px); max-height:82vh; border-radius:var(--radius-sm); box-shadow:0 40px 100px -20px rgba(0,0,0,0.7); transform:scale(.94); transition:transform .4s var(--ease);}
+.lightbox.open img{transform:scale(1);}
+.lightbox-close, .lightbox-prev, .lightbox-next{
+  position:absolute; width:48px; height:48px; border-radius:50%;
+  background:rgba(255,255,255,0.08); color:#fff; display:flex; align-items:center; justify-content:center;
+  transition:background .25s ease, transform .25s ease;
+}
+.lightbox-close:hover, .lightbox-prev:hover, .lightbox-next:hover{background:rgba(255,255,255,0.18); transform:scale(1.08);}
+.lightbox-close{top:1.6rem; right:1.6rem;}
+.lightbox-prev{left:1.6rem; top:50%; transform:translateY(-50%);}
+.lightbox-next{right:1.6rem; top:50%; transform:translateY(-50%);}
+
+/* ================================================================
+   SUPERMOCE (cards)
+================================================================ */
+.powers-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1.4rem;}
+.power-card{
+  position:relative; padding:2.2rem 1.9rem; border-radius:var(--radius-md);
+  background:rgba(255,255,255,0.55); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(10,10,13,0.07);
+  box-shadow:var(--shadow-light);
+  transform-style:preserve-3d; transition:box-shadow .4s ease;
+  perspective:800px;
+}
+.power-card .icon{font-size:2.1rem; margin-bottom:1.1rem; display:inline-block;}
+.power-card h3{font-size:1.2rem; font-weight:700; margin-bottom:0.6rem; letter-spacing:-0.01em;}
+.power-card p{font-size:0.96rem; color:var(--grey-700);}
+.power-card:nth-child(4), .power-card:nth-child(5){grid-column:span 1;}
+.powers-grid .power-card:nth-child(1){grid-column:span 2;}
+.powers-grid .power-card:nth-child(4){grid-column:span 1;}
+@media (max-width:900px){
+  .powers-grid{grid-template-columns:repeat(2,1fr);}
+  .powers-grid .power-card:nth-child(1){grid-column:span 2;}
+}
+@media (max-width:600px){
+  .powers-grid{grid-template-columns:1fr;}
+  .powers-grid .power-card:nth-child(1){grid-column:span 1;}
+}
+
+/* ================================================================
+   COUNTERS
+================================================================ */
+.counters-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem; text-align:center;}
+.counter-card{padding:2.4rem 1rem; border-radius:var(--radius-md); border:1px solid var(--ink-line); background:rgba(255,255,255,0.03);}
+.counter-num{
+  font-family:var(--font-display); font-weight:800; font-size:clamp(2.4rem,5.2vw,3.4rem);
+  background:var(--gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.counter-num.pulse{animation:numPulse 2.6s ease-in-out infinite;}
+@keyframes numPulse{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);}}
+.counter-label{margin-top:0.6rem; font-size:0.85rem; color:#a8a8b3; font-family:var(--font-mono); letter-spacing:0.03em;}
+@media (max-width:760px){.counters-grid{grid-template-columns:repeat(2,1fr);}}
+
+/* ================================================================
+   TIMELINE — Oś dnia
+================================================================ */
+.timeline{position:relative; max-width:820px; margin-inline:auto;}
+.timeline::before{
+  content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-50%);
+  background:linear-gradient(180deg, transparent, var(--paper-line) 6%, var(--paper-line) 94%, transparent);
+}
+.tl-item{position:relative; width:50%; padding:0 3.2rem 3.4rem; }
+.tl-item:nth-child(odd){left:0; text-align:right;}
+.tl-item:nth-child(even){left:50%; text-align:left;}
+.tl-dot{
+  position:absolute; top:0.15rem; width:14px; height:14px; border-radius:50%; background:var(--gradient);
+  box-shadow:0 0 0 6px var(--paper), 0 0 0 7px var(--paper-line);
+}
+.tl-item:nth-child(odd) .tl-dot{right:-7px;}
+.tl-item:nth-child(even) .tl-dot{left:-7px;}
+.tl-time{font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--pink); margin-bottom:0.4rem; display:block;}
+.tl-item h3{font-size:1.25rem; margin-bottom:0.35rem; display:flex; gap:0.5rem;}
+.tl-item:nth-child(odd) h3{justify-content:flex-end;}
+.tl-item p{color:var(--grey-700); font-size:0.95rem;}
+
+@media (max-width:720px){
+  .timeline::before{left:14px;}
+  .tl-item, .tl-item:nth-child(odd), .tl-item:nth-child(even){
+    width:100%; left:0; text-align:left; padding:0 0 2.6rem 2.8rem;
+  }
+  .tl-item:nth-child(odd) .tl-dot, .tl-item:nth-child(even) .tl-dot{left:8px; right:auto;}
+  .tl-item:nth-child(odd) h3{justify-content:flex-start;}
+}
+
+/* ================================================================
+   CYTATY
+================================================================ */
+.quotes-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1.6rem;}
+.quote-card{
+  position:relative; padding:2.4rem 2rem 2rem; border-radius:var(--radius-md);
+  background:rgba(255,255,255,0.04); border:1px solid var(--ink-line);
+  font-family:var(--font-display); font-style:italic; font-weight:500; font-size:1.18rem; line-height:1.5;
+}
+.quote-card::before{
+  content:"“"; position:absolute; top:0.6rem; left:1.2rem; font-family:var(--font-display); font-size:3.4rem; font-style:normal;
+  background:var(--gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; opacity:0.7;
+}
+.quote-card p{position:relative; z-index:1; margin-top:1.4rem;}
+.quote-card:nth-child(2){transform:rotate(-1.4deg);}
+.quote-card:nth-child(3){transform:rotate(1.1deg);}
+.quote-card:nth-child(5){transform:rotate(1.6deg);}
+@media (max-width:900px){.quotes-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:600px){.quotes-grid{grid-template-columns:1fr;} .quote-card{transform:none !important;}}
+
+/* ================================================================
+   FINAL STATEMENT
+================================================================ */
+.finale{
+  position:relative; min-height:80vh; display:flex; align-items:center; justify-content:center; text-align:center;
+  overflow:hidden; color:#fff;
+}
+.finale-media{position:absolute; inset:0; z-index:0;}
+.finale-media img{width:100%; height:100%; object-fit:cover;}
+.finale-media .ph-fallback{position:absolute; inset:0; background:radial-gradient(circle at 50% 30%, rgba(124,92,255,0.35), transparent 60%), var(--ink);}
+.finale-overlay{position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(10,10,13,0.55), rgba(10,10,13,0.8));}
+.finale-content{position:relative; z-index:2; max-width:820px; padding:0 1.5rem;}
+.finale h2{font-size:clamp(2.3rem,6vw,4.2rem);}
+.finale p{margin-top:1.3rem; font-size:1.15rem; color:#d8d8e0;}
+
+/* ================================================================
+   FOOTER
+================================================================ */
+footer{background:var(--ink); color:#8b8d98; padding:3rem 0 2.2rem; border-top:1px solid var(--ink-line);}
+.footer-inner{display:flex; flex-direction:column; align-items:center; gap:0.8rem; text-align:center;}
+.footer-mark{width:26px; height:26px; opacity:0.8;}
+.footer-mark path, .footer-mark circle{fill:none; stroke:#8b8d98; stroke-width:4;}
+footer .love{font-size:0.95rem; color:#c9c9d4;}
+footer .tiny{font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.05em; opacity:0.6;}
+</style>
+</head>
+<body class="lock">
+
+<!-- ============================================================
+     LOADER
+============================================================ -->
+<div id="loader">
+  <svg class="mark" id="loaderMark" viewBox="0 0 200 200">
+    <path id="earL" class="fillme" d="M52,78 L28,18 L82,60 Z"/>
+    <path id="earR" class="fillme" d="M150,64 C182,50 190,96 160,104 C138,110 128,82 150,64 Z"/>
+    <circle id="head" class="fillme" cx="100" cy="115" r="58"/>
+    <circle id="eyeL" cx="82" cy="112" r="6"/>
+    <circle id="eyeR" cx="122" cy="112" r="6"/>
+    <path id="nose" d="M93,132 L107,132 L100,143 Z"/>
+    <path id="mouth" d="M78,150 Q90,164 100,151 Q110,164 122,150"/>
+  </svg>
+  <div class="loader-label" id="loaderLabel">TOKIO ŁADUJE ENERGIĘ</div>
+</div>
+
+<!-- cursor -->
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- ============================================================
+     NAVBAR
+============================================================ -->
+<nav class="navbar" id="navbar">
+  <div class="container">
+    <a href="#top" class="brand">
+      <svg class="mark" viewBox="0 0 200 200">
+        <path id="earLb" d="M52,78 L28,18 L82,60 Z"/>
+        <path id="earRb" d="M150,64 C182,50 190,96 160,104 C138,110 128,82 150,64 Z"/>
+        <circle id="headb" cx="100" cy="115" r="58"/>
+        <circle id="eyesb" cx="82" cy="112" r="6"/>
+        <circle cx="122" cy="112" r="6" id="eyesb2"/>
+        <path id="noseb" d="M93,132 L107,132 L100,143 Z"/>
+        <path id="mouthb" d="M78,150 Q90,164 100,151 Q110,164 122,150"/>
+      </svg>
+      Tokio
+    </a>
+    <ul class="nav-links" id="navLinks">
+      <li class="nav-close-item">
+        <button class="nav-close" id="navClose" aria-label="Zamknij menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </li>
+      <li><a href="#o-tokio" class="nav-link">O Tokio</a></li>
+      <li><a href="#galeria" class="nav-link">Galeria</a></li>
+      <li><a href="#supermoce" class="nav-link">Supermoce</a></li>
+      <li><a href="#os-dnia" class="nav-link">Oś dnia</a></li>
+      <li><a href="#cytaty" class="nav-link">Cytaty</a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Otwórz menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<header class="hero" id="top">
+  <div class="hero-media">
+    <img src="tokio-hero.jpg" alt="Tokio, mały czarno-biały pies" data-fallback>
+    <div class="ph-fallback">
+      <span style="font-size:2.4rem;">🐾</span>
+    </div>
+  </div>
+  <div class="hero-overlay"></div>
+  <canvas id="hero-particles"></canvas>
+
+  <div class="container hero-content">
+    <div class="eyebrow">Mały pies, wielki charakter</div>
+    <h1 class="hero-title" id="heroTitle" aria-label="TOKIO"></h1>
+    <p class="hero-sub">Mały pies. Wielka osobowość.</p>
+    <div class="hero-actions">
+      <button class="btn btn--primary" data-scroll="#o-tokio">Poznaj Tokio</button>
+      <a href="#galeria" class="btn btn--ghost">Zobacz galerię</a>
+    </div>
+  </div>
+
+</header>
+
+<!-- ============================================================
+     KIM JEST TOKIO
+============================================================ -->
+<section class="section section--light about" id="o-tokio">
+  <div class="container about-grid">
+    <div class="about-text reveal-l">
+      <div class="eyebrow">Kim jest Tokio?</div>
+      <p>Tokio to niewielki pies z charakterem większym od niejednego owczarka. Każdy dzień traktuje jak nową przygodę, a każdy spacer jak misję specjalną.</p>
+      <p>W jej świecie wszystko trzeba obwąchać, sprawdzić... i najlepiej jeszcze pogryźć. Poznasz ją od razu: biała kufa, czarna łata przez pół pyska, jedno ucho stoi na baczność, drugie ma to gdzieś.</p>
+      <p>Do kompletu — kolorowe szelki i mina, która w jednej sekundzie potrafi przejść od „kocham cię” do „wypowiadam ci wojnę”. Słodka i trochę groźna. Zawsze w centrum uwagi. Zawsze w ruchu.</p>
+    </div>
+    <div class="about-portrait reveal-r">
+      <div class="photo-frame">
+        <img src="tokio-portrait.jpg" alt="Portret Tokio" data-fallback loading="lazy">
+        <div class="ph-fallback"><span class="ph-icon">🐕</span><span class="ph-label">tokio-portrait.jpg</span></div>
+      </div>
+      <div class="chip chip--1"><span class="dot"></span>Czarno-biała</div>
+      <div class="chip chip--2"><span class="dot"></span>Jedno ucho w górze</div>
+      <div class="chip chip--3"><span class="dot"></span>Zawodowy gryzoń</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     GALERIA
+============================================================ -->
+<section class="section section--dark" id="galeria">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Galeria</div>
+      <h2>Tokio w akcji</h2>
+      <p>Trzy momenty. Zero spokoju. Bardzo dużo osobowości.</p>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- items injected by JS-friendly static markup -->
+    </div>
+  </div>
+</section>
+
+<!-- lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lbClose" aria-label="Zamknij"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  <button class="lightbox-prev" id="lbPrev" aria-label="Poprzednie"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <img id="lbImg" src="" alt="Powiększone zdjęcie Tokio">
+  <button class="lightbox-next" id="lbNext" aria-label="Następne"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+</div>
+
+<!-- ============================================================
+     SUPERMOCE
+============================================================ -->
+<section class="section section--light" id="supermoce">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Supermoce Tokio</div>
+      <h2>Mała, ale ma pięć trybów</h2>
+    </div>
+    <div class="powers-grid">
+      <div class="power-card tilt reveal-scale">
+        <span class="icon">🐶</span>
+        <h3>Profesjonalny gryzoń</h3>
+        <p>Potrafi znaleźć coś do gryzienia nawet wtedy, gdy wydaje się, że absolutnie nic nie ma.</p>
+      </div>
+      <div class="power-card tilt reveal-scale">
+        <span class="icon">⚡</span>
+        <h3>Rakieta spacerowa</h3>
+        <p>Spacer? Nigdy za długi. Startuje jak z procy, ląduje dopiero na kanapie.</p>
+      </div>
+      <div class="power-card tilt reveal-scale">
+        <span class="icon">😠</span>
+        <h3>Mistrzyni obrażania się</h3>
+        <p>Jedno spojrzenie wystarczy, żeby każdy wiedział, że Tokio właśnie się obraziła.</p>
+      </div>
+      <div class="power-card tilt reveal-scale">
+        <span class="icon">😂</span>
+        <h3>Królowa śmiesznych min</h3>
+        <p>Wygląda jak mem praktycznie przez cały dzień.</p>
+      </div>
+      <div class="power-card tilt reveal-scale">
+        <span class="icon">❤️</span>
+        <h3>Mistrzyni przytulania</h3>
+        <p>Po całym dniu rozrabiania uwielbia wtulić się w człowieka.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CIEKAWOSTKI / LICZNIKI
+============================================================ -->
+<section class="section section--dark" id="ciekawostki">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Ciekawostki</div>
+      <h2>Tokio w liczbach</h2>
+    </div>
+    <div class="counters-grid">
+      <div class="counter-card reveal">
+        <div class="counter-num" data-count="100" data-suffix="%">0%</div>
+        <div class="counter-label">Poziom energii</div>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-num" data-count="999" data-suffix="+">0+</div>
+        <div class="counter-label">Pogryzionych przedmiotów</div>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-num pulse">∞</div>
+        <div class="counter-label">Miłości do spacerów</div>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-num pulse">24/7</div>
+        <div class="counter-label">Gotowość na zabawę</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     OŚ DNIA
+============================================================ -->
+<section class="section section--light" id="os-dnia">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Jeden dzień z Tokio</div>
+      <h2>Oś dnia</h2>
+      <p>Harmonogram równie napięty co jej cierpliwość do obcych kotów.</p>
+    </div>
+    <div class="timeline">
+      <div class="tl-item reveal-l">
+        <span class="tl-dot"></span>
+        <span class="tl-time">6:00</span>
+        <h3>🌞 Pobudka</h3>
+        <p>Świat się kończy, jeśli nikt nie wstanie z łóżka natychmiast.</p>
+      </div>
+      <div class="tl-item reveal-r">
+        <span class="tl-dot"></span>
+        <span class="tl-time">6:15</span>
+        <h3>🥣 Śniadanie</h3>
+        <p>Zjedzone w 11 sekund. Ocena jakości trwa znacznie dłużej.</p>
+      </div>
+      <div class="tl-item reveal-l">
+        <span class="tl-dot"></span>
+        <span class="tl-time">7:00</span>
+        <h3>🚶 Spacer</h3>
+        <p>Każdy krzak to nowe śledztwo. Każdy przechodzień — potencjalny fan klub.</p>
+      </div>
+      <div class="tl-item reveal-r">
+        <span class="tl-dot"></span>
+        <span class="tl-time">10:00</span>
+        <h3>🏃 Bieganie</h3>
+        <p>Prędkość: maksymalna. Kierunek: ustalany w locie.</p>
+      </div>
+      <div class="tl-item reveal-l">
+        <span class="tl-dot"></span>
+        <span class="tl-time">13:00</span>
+        <h3>🦴 Gryzienie wszystkiego</h3>
+        <p>Cel: wszystko, co znajdzie się w zasięgu pyska. Bez wyjątków.</p>
+      </div>
+      <div class="tl-item reveal-r">
+        <span class="tl-dot"></span>
+        <span class="tl-time">15:30</span>
+        <h3>😴 Drzemka</h3>
+        <p>Ładowanie baterii przed kolejną rundą chaosu.</p>
+      </div>
+      <div class="tl-item reveal-l">
+        <span class="tl-dot"></span>
+        <span class="tl-time">18:00</span>
+        <h3>🚶 Jeszcze jeden spacer</h3>
+        <p>Bo jeden dziennie to policzalna obraza.</p>
+      </div>
+      <div class="tl-item reveal-r">
+        <span class="tl-dot"></span>
+        <span class="tl-time">21:30</span>
+        <h3>🤗 Wieczorne przytulanie</h3>
+        <p>Tryb słodki: aktywowany do rana.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CYTATY
+============================================================ -->
+<section class="section section--dark" id="cytaty">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">W jej własnych słowach*</div>
+      <h2>Cytaty Tokio</h2>
+      <p style="font-family:var(--font-mono); font-size:0.75rem; opacity:0.6;">*tłumaczenie z języka szczekania</p>
+    </div>
+    <div class="quotes-grid">
+      <div class="quote-card reveal-scale"><p>Gdyby gryzienie było sportem olimpijskim, miałabym złoto.</p></div>
+      <div class="quote-card reveal-scale"><p>Nie jestem zła. Po prostu oceniam.</p></div>
+      <div class="quote-card reveal-scale"><p>Każdy patyk zasługuje na dokładne pogryzienie.</p></div>
+      <div class="quote-card reveal-scale"><p>Gdzie ja, tam impreza. Nawet jeśli nikt jeszcze o tym nie wie.</p></div>
+      <div class="quote-card reveal-scale"><p>Jedno uszko w górze. Plan podboju świata w toku.</p></div>
+      <div class="quote-card reveal-scale"><p>Spacer się nie kończy. Spacer się jedynie wstrzymuje.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FINALE
+============================================================ -->
+<section class="finale">
+  <div class="finale-media">
+    <img src="tokio-final.jpg" alt="Tokio" data-fallback>
+    <div class="ph-fallback"></div>
+  </div>
+  <div class="finale-overlay"></div>
+  <div class="finale-content reveal-scale">
+    <h2>Tokio nie prosi o uwagę.<br>Ona ją zgarnia.</h2>
+    <p>Mała sierść. Wielkie ego. Zero regretów.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     FOOTER
+============================================================ -->
+<footer>
+  <div class="container footer-inner">
+    <svg class="footer-mark" viewBox="0 0 200 200">
+      <path d="M52,78 L28,18 L82,60 Z"/>
+      <path d="M150,64 C182,50 190,96 160,104 C138,110 128,82 150,64 Z"/>
+      <circle cx="100" cy="115" r="58"/>
+    </svg>
+    <div class="love">Strona stworzona z miłości do Tokio ❤️</div>
+    <div class="tiny">TOKIO™ — CHAOS OD 2023</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isFinePointer = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+const isSmall = window.innerWidth < 760;
+
+/* ---------------------------------------------------------
+   IMAGE FALLBACKS
+--------------------------------------------------------- */
+document.querySelectorAll('img[data-fallback]').forEach(img=>{
+  const frame = img.closest('.photo-frame, .hero-media, .finale-media');
+  const fb = frame ? frame.querySelector('.ph-fallback') : null;
+  img.addEventListener('error', ()=>{
+    img.style.display='none';
+    if(fb) fb.style.display='flex';
+  }, {once:true});
+  img.addEventListener('load', ()=>{
+    const item = img.closest('.gallery-item');
+    if(item) item.classList.add('loaded');
+  });
+});
+
+/* ---------------------------------------------------------
+   GALLERY — build 8 items dynamically (keeps markup short)
+--------------------------------------------------------- */
+const galleryGrid = document.getElementById('galleryGrid');
+const galleryFiles = [
+  'tokio-1.jpg','tokio-2.jpg','tokio-3.jpg'
+];
+galleryFiles.forEach((file, i)=>{
+  const el = document.createElement('div');
+  el.className = 'gallery-item reveal-scale';
+  el.innerHTML = `
+    <div class="photo-frame">
+      <img src="${file}" alt="Tokio — zdjęcie ${i+1}" data-fallback loading="lazy">
+      <div class="ph-fallback"><span class="ph-icon">🐾</span><span class="ph-label">${file}</span></div>
+      <div class="zoom-hint"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.35-4.35"/></svg></div>
+    </div>`;
+  galleryGrid.appendChild(el);
+
+  const img = el.querySelector('img');
+  const fb = el.querySelector('.ph-fallback');
+  img.addEventListener('error', ()=>{ img.style.display='none'; fb.style.display='flex'; }, {once:true});
+  img.addEventListener('load', ()=> el.classList.add('loaded'));
+
+  el.addEventListener('click', ()=>{
+    if(!el.classList.contains('loaded')) return;
+    openLightbox(i);
+  });
+});
+
+/* ---------------------------------------------------------
+   LIGHTBOX
+--------------------------------------------------------- */
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lbImg');
+let lbIndex = 0;
+
+function loadedIndices(){
+  return galleryFiles.map((f,i)=>i).filter(i=>{
+    const item = galleryGrid.children[i];
+    return item && item.classList.contains('loaded');
+  });
+}
+function openLightbox(i){
+  lbIndex = i;
+  lbImg.src = galleryFiles[i];
+  lightbox.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeLightbox(){
+  lightbox.classList.remove('open');
+  document.body.style.overflow='';
+}
+function stepLightbox(dir){
+  const valid = loadedIndices();
+  if(!valid.length) return;
+  let pos = valid.indexOf(lbIndex);
+  pos = (pos + dir + valid.length) % valid.length;
+  lbIndex = valid[pos];
+  lbImg.src = galleryFiles[lbIndex];
+}
+document.getElementById('lbClose').addEventListener('click', closeLightbox);
+document.getElementById('lbPrev').addEventListener('click', ()=>stepLightbox(-1));
+document.getElementById('lbNext').addEventListener('click', ()=>stepLightbox(1));
+lightbox.addEventListener('click', e=>{ if(e.target === lightbox) closeLightbox(); });
+window.addEventListener('keydown', e=>{
+  if(!lightbox.classList.contains('open')) return;
+  if(e.key==='Escape') closeLightbox();
+  if(e.key==='ArrowLeft') stepLightbox(-1);
+  if(e.key==='ArrowRight') stepLightbox(1);
+});
+
+/* ---------------------------------------------------------
+   LOADER
+--------------------------------------------------------- */
+const loader = document.getElementById('loader');
+const loaderMark = document.getElementById('loaderMark');
+const loaderLabel = document.getElementById('loaderLabel');
+const shapes = loaderMark.querySelectorAll('path, circle');
+
+shapes.forEach((el, i)=>{
+  const len = el.getTotalLength ? el.getTotalLength() : 200;
+  el.style.strokeDasharray = len;
+  el.style.strokeDashoffset = len;
+  el.style.transition = `stroke-dashoffset .7s var(--ease) ${i*0.09}s`;
+});
+
+function startLoader(){
+  requestAnimationFrame(()=>{
+    shapes.forEach(el=>{ el.style.strokeDashoffset = 0; });
+  });
+  setTimeout(()=> loaderLabel.classList.add('show'), 300);
+  setTimeout(()=> loaderMark.classList.add('filled'), 900);
+  const minTime = reducedMotion ? 200 : 1500;
+  setTimeout(()=>{
+    loader.classList.add('done');
+    document.body.classList.remove('lock');
+    initHeroTitle();
+  }, minTime);
+}
+if(document.readyState === 'complete'){ startLoader(); }
+else { window.addEventListener('load', startLoader); setTimeout(startLoader, 2600); }
+
+/* ---------------------------------------------------------
+   HERO TITLE — letter reveal
+--------------------------------------------------------- */
+function initHeroTitle(){
+  const titleEl = document.getElementById('heroTitle');
+  if(titleEl.dataset.done) return;
+  titleEl.dataset.done = '1';
+  const word = 'TOKIO';
+  word.split('').forEach((ch,i)=>{
+    const span = document.createElement('span');
+    span.textContent = ch;
+    span.style.setProperty('--i', i);
+    titleEl.appendChild(span);
+  });
+}
+
+/* ---------------------------------------------------------
+   NAVBAR
+--------------------------------------------------------- */
+const navbar = document.getElementById('navbar');
+const navLinks = document.getElementById('navLinks');
+const navToggle = document.getElementById('navToggle');
+navToggle.addEventListener('click', ()=> navLinks.classList.toggle('open'));
+document.getElementById('navClose').addEventListener('click', ()=> navLinks.classList.remove('open'));
+document.querySelectorAll('.nav-link').forEach(a=> a.addEventListener('click', ()=> navLinks.classList.remove('open')));
+
+/* ---------------------------------------------------------
+   SCROLL: navbar state + progress bar (rAF throttled)
+--------------------------------------------------------- */
+const progressBar = document.getElementById('progressBar');
+let ticking = false;
+function onScroll(){
+  if(!ticking){
+    requestAnimationFrame(()=>{
+      const y = window.scrollY;
+      navbar.classList.toggle('scrolled', y > 40);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      progressBar.style.width = (max>0 ? (y/max*100) : 0) + '%';
+      ticking = false;
+    });
+    ticking = true;
+  }
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+
+/* smooth scroll for data-scroll buttons */
+document.querySelectorAll('[data-scroll]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const target = document.querySelector(btn.dataset.scroll);
+    if(target) target.scrollIntoView({behavior: reducedMotion ? 'auto' : 'smooth'});
+  });
+});
+
+/* ---------------------------------------------------------
+   REVEAL ON SCROLL
+--------------------------------------------------------- */
+const revealEls = document.querySelectorAll('.reveal, .reveal-l, .reveal-r, .reveal-scale');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      entry.target.classList.add('in');
+      io.unobserve(entry.target);
+    }
+  });
+}, {threshold:0.15, rootMargin:'0px 0px -8% 0px'});
+revealEls.forEach(el=> io.observe(el));
+
+/* ---------------------------------------------------------
+   COUNTERS
+--------------------------------------------------------- */
+const counters = document.querySelectorAll('.counter-num[data-count]');
+const counterIO = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(!entry.isIntersecting) return;
+    const el = entry.target;
+    const target = parseInt(el.dataset.count, 10);
+    const suffix = el.dataset.suffix || '';
+    const duration = reducedMotion ? 0 : 1500;
+    const start = performance.now();
+    function tick(now){
+      const p = duration ? Math.min((now-start)/duration, 1) : 1;
+      const eased = 1 - Math.pow(1-p, 3);
+      el.textContent = Math.round(target*eased) + suffix;
+      if(p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    counterIO.unobserve(el);
+  });
+}, {threshold:0.5});
+counters.forEach(el=> counterIO.observe(el));
+
+/* ---------------------------------------------------------
+   RIPPLE EFFECT
+--------------------------------------------------------- */
+document.querySelectorAll('.btn').forEach(btn=>{
+  btn.addEventListener('click', function(e){
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.4;
+    const span = document.createElement('span');
+    span.className = 'ripple';
+    span.style.width = span.style.height = size+'px';
+    span.style.left = (e.clientX - rect.left - size/2)+'px';
+    span.style.top = (e.clientY - rect.top - size/2)+'px';
+    btn.appendChild(span);
+    span.addEventListener('animationend', ()=> span.remove());
+  });
+});
+
+/* ---------------------------------------------------------
+   3D TILT ON POWER CARDS
+--------------------------------------------------------- */
+if(isFinePointer && !reducedMotion){
+  document.querySelectorAll('.power-card.tilt').forEach(card=>{
+    card.addEventListener('mousemove', e=>{
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left)/r.width - 0.5;
+      const y = (e.clientY - r.top)/r.height - 0.5;
+      card.style.transform = `perspective(800px) rotateY(${x*7}deg) rotateX(${-y*7}deg) translateY(-4px)`;
+    });
+    card.addEventListener('mouseleave', ()=>{ card.style.transform=''; });
+  });
+}
+
+/* ---------------------------------------------------------
+   CUSTOM CURSOR
+--------------------------------------------------------- */
+if(isFinePointer && !reducedMotion){
+  document.documentElement.classList.add('has-cursor');
+  const dot = document.getElementById('cursorDot');
+  const ring = document.getElementById('cursorRing');
+  let mx=innerWidth/2, my=innerHeight/2, rx=mx, ry=my;
+  window.addEventListener('mousemove', e=>{
+    mx=e.clientX; my=e.clientY;
+    dot.style.left=mx+'px'; dot.style.top=my+'px';
+  });
+  (function loop(){
+    rx += (mx-rx)*0.18; ry += (my-ry)*0.18;
+    ring.style.left=rx+'px'; ring.style.top=ry+'px';
+    requestAnimationFrame(loop);
+  })();
+  document.querySelectorAll('a, button, .gallery-item, .power-card').forEach(el=>{
+    el.addEventListener('mouseenter', ()=> document.documentElement.classList.add('cursor-hover'));
+    el.addEventListener('mouseleave', ()=> document.documentElement.classList.remove('cursor-hover'));
+  });
+}
+
+/* ---------------------------------------------------------
+   HERO PARALLAX (background image + mouse)
+--------------------------------------------------------- */
+const heroImg = document.querySelector('.hero-media img');
+if(!reducedMotion){
+  window.addEventListener('scroll', ()=>{
+    const y = window.scrollY;
+    if(y < window.innerHeight){
+      heroImg.style.transform = `scale(1.08) translateY(${y*0.15}px)`;
+    }
+  }, {passive:true});
+}
+
+/* ---------------------------------------------------------
+   HERO PARTICLES (canvas, capped, paused off-screen)
+--------------------------------------------------------- */
+if(!reducedMotion && !isSmall){
+  const canvas = document.getElementById('hero-particles');
+  const ctx = canvas.getContext('2d');
+  const hero = document.querySelector('.hero');
+  let W,H, particles=[], raf=null;
+
+  function resize(){
+    W = canvas.width = hero.offsetWidth;
+    H = canvas.height = hero.offsetHeight;
+  }
+  function makeParticles(){
+    particles = Array.from({length:26}, ()=>({
+      x: Math.random()*W,
+      y: Math.random()*H + H*0.2,
+      r: 1 + Math.random()*2.2,
+      speed: 0.25 + Math.random()*0.5,
+      drift: (Math.random()-0.5)*0.4,
+      alpha: 0.12 + Math.random()*0.22
+    }));
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{
+      p.y -= p.speed; p.x += p.drift;
+      if(p.y < -10){ p.y = H+10; p.x = Math.random()*W; }
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${p.alpha})`;
+      ctx.fill();
+    });
+    raf = requestAnimationFrame(draw);
+  }
+  resize(); makeParticles();
+  window.addEventListener('resize', resize);
+
+  const heroIO = new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){ if(!raf) draw(); }
+      else { if(raf){ cancelAnimationFrame(raf); raf=null; } }
+    });
+  }, {threshold:0});
+  heroIO.observe(hero);
+}
+
+})();
+</script>
+</body>
+</html>
