@@ -1,0 +1,14 @@
+# Traktuj pliki tekstowe normalnie (auto LF)
+* text=auto
+
+# Zdjęcia, wideo i inne pliki binarne — nigdy nie ruszaj bajtów
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg binary
+*.mp4 binary
+*.mov binary
+*.webm binary
